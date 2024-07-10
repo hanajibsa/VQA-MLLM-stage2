@@ -25,7 +25,7 @@ model:
   prompt: ""
 
 datasets:      
-  llava_pretrain: 
+  ok_vqa: 
     vis_processor:
         train:
           name: "blip_image_train"
