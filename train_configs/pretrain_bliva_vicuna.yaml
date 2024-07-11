@@ -19,7 +19,7 @@ model:
   num_query_token: 32
 
   # path to Vicuna checkpoint
-  llm_model: "path to Vicuna checkpoint"
+  llm_model: "lmsys/vicuna-7b-v1.5"
 
   # generation configs
   prompt: ""
@@ -62,7 +62,7 @@ run:
   evaluate: False 
   train_splits: ["train"]
 
-  device: "cuda"
+  device: "cpu" #"cuda"
   world_size: 1
   dist_url: "env://"
   distributed: True

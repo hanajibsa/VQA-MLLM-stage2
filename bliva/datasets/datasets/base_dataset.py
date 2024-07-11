@@ -21,14 +21,10 @@ class BaseDataset(Dataset):
         ann_root (string): directory to store the annotation file
         """
         self.vis_root = vis_root
-
         self.annotation = []
         for ann_path in ann_paths:
-            self.annotation.extend(json.load(open(ann_path, "r")))
-
-        self.vis_processor = vis_processor
-        self.text_processor = text_processor
-
+            self.annotation.append(json.load(open(ann_path, "r")))
+        #print(self.annotation)
         self._add_instance_ids()
 
     def __len__(self):
@@ -86,7 +82,7 @@ class BasePromptDataset(Dataset):
         self._add_instance_ids()
 
     def __len__(self):
-        return len(self.annotation['data'])
+        return len(self.annotation['annotations'])
 
     def collater(self, samples):
         return default_collate(samples)
@@ -96,7 +92,7 @@ class BasePromptDataset(Dataset):
         self.text_processor = text_processor
 
     def _add_instance_ids(self, key="instance_id"):
-        for idx, ann in enumerate(self.annotation['data']):
+        for idx, ann in enumerate(self.annotation['annotations']):
             ann[key] = str(idx)
 
 
