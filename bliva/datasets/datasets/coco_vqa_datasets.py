@@ -25,7 +25,7 @@ class __DisplMixin:
                 "file": ann["image"],
                 "question": ann["question"],
                 "question_id": ann["question_id"],
-                "answers": "; ".join(ann["answer"]),
+                "answers": "; ".join(ann["answers"]),
                 "image": sample["image"],
             }
         )
@@ -63,7 +63,7 @@ class COCOVQADataset(VQADataset):
 
         if not os.path.exists(image_path):
             # 이미지가 없으면 다음 항목으로 넘어갑니다.
-            print(f"Warning: File {image_path} does not exist in . Skipping this item.")
+            #print(f"Warning: File {image_path} does not exist in . Skipping this item.")
             return self.__getitem__((index + 1) % len(self))
 
         image = Image.open(image_path).convert("RGB")
@@ -74,17 +74,19 @@ class COCOVQADataset(VQADataset):
         text_input = self.prompts[choice].format(question)
         answer_weight = {}
         for answer in ann["answers"]:
-            if answer["answer"] in answer_weight:
+            if answer["answer"] in answer_weight.keys():
                 answer_weight[answer["answer"]] += 1 / len(ann["answers"])
             else:
                 answer_weight[answer["answer"]] = 1 / len(ann["answers"])
 
         best_answer = max(answer_weight, key=answer_weight.get)
 
+        #print(answer_weight)
         return {
             "image": image,
             "text_input": text_input,
             "text_output": best_answer,
+            'weights':answer_weight
         }
 
 

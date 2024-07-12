@@ -22,13 +22,14 @@ class VQADataset(BaseDataset):
         for sample in samples:
             image_list.append(sample["image"])
             question_list.append(sample["text_input"])
-
-            weight_list.extend(sample["weights"])
-
-            answers = sample["answers"]
-
-            answer_list.extend(answers)
-            num_answers.append(len(answers))
+            #print(sample)
+            weight_list.extend(list(sample["weights"].values()))
+            #print(weight_list)
+            #answers = sample["weights"]
+            #print(answers)
+            answer_list.extend(sample['weights'])
+            #print(answer_list)
+            num_answers.append(len(answer_list))
 
         return {
             "image": torch.stack(image_list, dim=0),

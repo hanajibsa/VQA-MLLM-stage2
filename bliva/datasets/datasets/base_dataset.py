@@ -41,7 +41,7 @@ class BaseDataset(Dataset):
                 self.annotation.extend(data['annotations'])  # 'annotations' 키의 값을 가져옴
 
         #print(self.annotation)
-        print(ann_path)
+        #print(ann_path)
         self.vis_processor = vis_processor
         self.text_processor = text_processor
 
@@ -115,4 +115,5 @@ class ConcatDataset(ConcatDataset):
         for s in samples:
             samples_shared_keys.append({k: s[k] for k in s.keys() if k in shared_keys})
 
+        #print(samples_shared_keys)
         return self.datasets[0].collater(samples_shared_keys)
