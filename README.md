@@ -4,7 +4,7 @@
 
 ## Train
 
-After downloading the training datasets and specify their path in [dataset configs](bliva/configs/datasets/), we are ready for training. We utilized 8x A6000 Ada in our experiments. Please adjust hyperparamters according to your GPU resources. It may take transformers around 2 minutes to load the model, give some time for the model to start training. Here we give an example of traning BLIVA Vicuna version, the Flant5 version follows the same format.
+After downloading the training datasets and specify their path in [dataset configs](bliva/configs/datasets/), we are ready for training!
 
 0. Setting Environments
 ```Shell
