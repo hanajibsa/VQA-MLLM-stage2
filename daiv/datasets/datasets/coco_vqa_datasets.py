@@ -63,7 +63,7 @@ class COCOVQADataset(VQADataset):
 
         if not os.path.exists(image_path):
             # 이미지가 없으면 다음 항목으로 넘어갑니다.
-            #print(f"Warning: File {image_path} does not exist in . Skipping this item.")
+            print(f"Warning: File {image_path} does not exist in . Skipping this item.")
             return self.__getitem__((index + 1) % len(self))
 
         image = Image.open(image_path).convert("RGB")

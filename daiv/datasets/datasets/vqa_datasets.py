@@ -31,10 +31,11 @@ class VQADataset(BaseDataset):
             #print(answer_list)
             num_answers.append(len(answer_list))
 
+        #print(sample)
         return {
             "image": torch.stack(image_list, dim=0),
             "text_input": question_list,
-            "answer": answer_list,
+            "text_output": answer_list,
             "weight": torch.Tensor(weight_list),
             "n_answers": torch.LongTensor(num_answers),
         }
