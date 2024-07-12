@@ -30,3 +30,9 @@ pip install setuptools==69.5.1
 python train.py --cfg-path train_configs/pretrain_bliva_vicuna.yaml
 ```
 
+2. Instruction Finetuning BLIVA
+
+```Shell
+python 
+```
+
