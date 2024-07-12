@@ -4,7 +4,7 @@
 
 ## Train
 
-After downloading the training datasets and specify their path in [dataset configs](bliva/configs/datasets/), we are ready for training!
+After downloading the training datasets and specify their path in [dataset configs](daiv/configs/datasets/), we are ready for training!
 
 0. Setting Environments
 ```Shell
