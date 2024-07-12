@@ -19,6 +19,10 @@ cd BLIVA
 ```Shell
 pip install -e .
 ```
+if packaging error, then
+```Shell
+pip install setuptools==69.5.1
+```
 
 2. Pretraining of visual assistant branch
 
