@@ -1,4 +1,4 @@
-#Improving VQA Using MLLM
+# Improving VQA Using MLLM
 ![image](https://github.com/pej0918/BLIVA/assets/79118751/d3de9fc7-cbda-4fb1-ba88-202ac09ee28f)
 
 
