@@ -12,19 +12,39 @@ from torch.utils.data import Dataset, ConcatDataset
 from torch.utils.data.dataloader import default_collate
 
 
+"""
+ Copyright (c) 2022, salesforce.com, inc.
+ All rights reserved.
+ SPDX-License-Identifier: BSD-3-Clause
+ For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
+"""
+
+import json
+from typing import Iterable
+
+from torch.utils.data import Dataset, ConcatDataset
+from torch.utils.data.dataloader import default_collate
+
+
 class BaseDataset(Dataset):
-    def __init__(
-        self, vis_processor=None, text_processor=None, vis_root=None, ann_paths=[]
-    ):
+    def __init__(self, vis_processor=None, text_processor=None, vis_root=None, ann_paths=[]):
         """
         vis_root (string): Root directory of images (e.g. coco/images/)
-        ann_root (string): directory to store the annotation file
+        ann_root (string): Directory to store the annotation file
         """
         self.vis_root = vis_root
         self.annotation = []
+
         for ann_path in ann_paths:
-            self.annotation.append(json.load(open(ann_path, "r")))
+            with open(ann_path, "r") as f:
+                data = json.load(f)
+                self.annotation.extend(data['annotations'])  # 'annotations' 키의 값을 가져옴
+
         #print(self.annotation)
+        print(ann_path)
+        self.vis_processor = vis_processor
+        self.text_processor = text_processor
+
         self._add_instance_ids()
 
     def __len__(self):
@@ -39,6 +59,40 @@ class BaseDataset(Dataset):
 
     def _add_instance_ids(self, key="instance_id"):
         for idx, ann in enumerate(self.annotation):
+            ann[key] = str(idx)
+
+
+
+
+class BasePromptDataset(Dataset):
+    def __init__(
+        self, vis_processor=None, text_processor=None, vis_root=None, ann_paths=[]
+    ):
+        """
+        vis_root (string): Root directory of images (e.g. coco/images/)
+        ann_root (string): directory to store the annotation file
+        """
+        self.vis_root = vis_root
+
+        self.annotation = json.load(open(ann_paths[0], "r")) # a list of dicts or just a dict 
+
+        self.vis_processor = vis_processor
+        self.text_processor = text_processor
+
+        self._add_instance_ids()
+
+    def __len__(self):
+        return len(self.annotation['data'])
+
+    def collater(self, samples):
+        return default_collate(samples)
+
+    def set_processors(self, vis_processor, text_processor):
+        self.vis_processor = vis_processor
+        self.text_processor = text_processor
+
+    def _add_instance_ids(self, key="instance_id"):
+        for idx, ann in enumerate(self.annotation['data']):
             ann[key] = str(idx)
 
 
@@ -62,37 +116,3 @@ class ConcatDataset(ConcatDataset):
             samples_shared_keys.append({k: s[k] for k in s.keys() if k in shared_keys})
 
         return self.datasets[0].collater(samples_shared_keys)
-
-
-class BasePromptDataset(Dataset):
-    def __init__(
-        self, vis_processor=None, text_processor=None, vis_root=None, ann_paths=[]
-    ):
-        """
-        vis_root (string): Root directory of images (e.g. coco/images/)
-        ann_root (string): directory to store the annotation file
-        """
-        self.vis_root = vis_root
-
-        self.annotation = json.load(open(ann_paths[0], "r")) # a list of dicts or just a dict 
-
-        self.vis_processor = vis_processor
-        self.text_processor = text_processor
-
-        self._add_instance_ids()
-
-    def __len__(self):
-        return len(self.annotation['annotations'])
-
-    def collater(self, samples):
-        return default_collate(samples)
-
-    def set_processors(self, vis_processor, text_processor):
-        self.vis_processor = vis_processor
-        self.text_processor = text_processor
-
-    def _add_instance_ids(self, key="instance_id"):
-        for idx, ann in enumerate(self.annotation['annotations']):
-            ann[key] = str(idx)
-
-

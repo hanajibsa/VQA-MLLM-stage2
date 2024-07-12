@@ -31,11 +31,13 @@ class __DisplMixin:
         )
 
 
+
 class COCOVQADataset(VQADataset):
     def __init__(self, vis_processor, text_processor, vis_root, ann_paths):
         super().__init__(vis_processor, text_processor, vis_root, ann_paths)
     
-        self.prompts =  ["{}","Question: {}", 
+        self.prompts = [
+            "{}","Question: {}", 
             "{} A short answer to the question is",
             "Q: {} A:",
             "Question: {} Short answer:",
@@ -43,28 +45,40 @@ class COCOVQADataset(VQADataset):
             "Based on the image, respond to this question with a short answer: {}. Answer:",
             "Use the provided image to answer the question: {} Provide your answer as short as possible:",
             "What is the answer to the following question?{}",
-            "The question {} can be answered using the image. A short answer is"]
-        
+            "The question {} can be answered using the image. A short answer is"
+        ]
+
+    def __len__(self):
+        return len(self.annotation)
+
     def __getitem__(self, index):
         ann = self.annotation[index]
+        #print(ann)
 
-        image_path = os.path.join(self.vis_root, ann["image"])
+        #임의로 지정
+        #self.vis_root = '/content/drive/MyDrive/24s_deepdaiv_VQA/prophet/datasets/coco2014/train2014'
+        # 이미지 경로가 포함되어 있지 않다면, 이미지 경로를 생성해야 합니다.
+        image_filename = f"COCO_train2014_{ann['image_id']:012d}.jpg"
+        image_path = os.path.join(self.vis_root, image_filename)
+
+        if not os.path.exists(image_path):
+            # 이미지가 없으면 다음 항목으로 넘어갑니다.
+            print(f"Warning: File {image_path} does not exist in . Skipping this item.")
+            return self.__getitem__((index + 1) % len(self))
+
         image = Image.open(image_path).convert("RGB")
-
         image = self.vis_processor(image)
         question = self.text_processor(ann["question"])
         choice = np.random.choice(len(self.prompts))
 
         text_input = self.prompts[choice].format(question)
         answer_weight = {}
-        for answer in ann["answer"]:
-            if answer in answer_weight.keys():
-                answer_weight[answer] += 1 / len(ann["answer"])
+        for answer in ann["answers"]:
+            if answer["answer"] in answer_weight:
+                answer_weight[answer["answer"]] += 1 / len(ann["answers"])
             else:
-                answer_weight[answer] = 1 / len(ann["answer"])
+                answer_weight[answer["answer"]] = 1 / len(ann["answers"])
 
-        # answers = list(answer_weight.keys())
-        # weights = list(answer_weight.values())
         best_answer = max(answer_weight, key=answer_weight.get)
 
         return {
@@ -72,25 +86,8 @@ class COCOVQADataset(VQADataset):
             "text_input": text_input,
             "text_output": best_answer,
         }
-    
-    def collater(self, samples):
-        image_list, question_list, answer_list = [], [], [],
 
-        for sample in samples:
-            image_list.append(sample["image"])
-           
-            question_list.append(sample["text_input"])
 
-            answers = sample["text_output"]
-
-            answer_list.append(answers)
-        
-
-        return {
-            "image": torch.stack(image_list, dim=0),
-            "text_input": question_list,
-            "text_output": answer_list,
-        }
 
 class VQGCOCOVQADataset(VQADataset):
     def __init__(self, vis_processor, text_processor, vis_root, ann_paths):
@@ -154,12 +151,13 @@ class COCOVQAEvalDataset(VQAEvalDataset, __DisplMixin):
     def __init__(self, vis_processor, text_processor, vis_root, ann_paths):
         """
         vis_root (string): Root directory of images (e.g. coco/images/)
-        ann_root (string): directory to store the annotation file
+        ann_root (string): Directory to store the annotation file
         """
-
         self.vis_root = vis_root
 
-        self.annotation = json.load(open(ann_paths[0]))
+        with open(ann_paths[0], "r") as f:
+            data = json.load(f)
+            self.annotation = data['annotations']  # 'annotations' 키의 값을 가져옴
 
         answer_list_path = ann_paths[1]
         if os.path.exists(answer_list_path):
@@ -179,6 +177,9 @@ class COCOVQAEvalDataset(VQAEvalDataset, __DisplMixin):
 
         self._add_instance_ids()
 
+    def __len__(self):
+        return len(self.annotation)
+
     def __getitem__(self, index):
         ann = self.annotation[index]
 
@@ -194,3 +195,4 @@ class COCOVQAEvalDataset(VQAEvalDataset, __DisplMixin):
             "question_id": ann["question_id"],
             "instance_id": ann["instance_id"],
         }
+

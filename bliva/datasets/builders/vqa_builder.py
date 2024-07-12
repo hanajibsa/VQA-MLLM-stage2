@@ -183,6 +183,7 @@ class OKVQABuilder(COCOVQABuilder):
             ann_paths=[os.path.join(storage_path, 'okvqa_train.json')], 
             vis_root=vis_root,
         )
+        #print(datasets)
 
         return datasets
     
