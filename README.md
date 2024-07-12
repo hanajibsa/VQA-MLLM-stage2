@@ -30,10 +30,3 @@ pip install setuptools==69.5.1
 python train.py --cfg-path train_configs/pretrain_bliva_vicuna.yaml
 ```
 
-2. Instruction Finetuning BLIVA
-
-```Shell
-torchrun --nnodes=1 --nproc_per_node=8 \
-    train.py \
-    --cfg-path train_configs/finetune_bliva_vicuna.yaml
-```
