@@ -19,12 +19,14 @@ cd BLIVA
 ```Shell
 pip install -e .
 ```
+<br>
 if packaging error, then
 ```Shell
 pip install setuptools==69.5.1
 ```
+<br>
 
-2. Pretraining of visual assistant branch
+1. Pretraining of visual assistant branch
 
 ```Shell
 python train.py --cfg-path train_configs/pretrain_bliva_vicuna.yaml
