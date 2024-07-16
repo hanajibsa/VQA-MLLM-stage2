@@ -31,6 +31,7 @@ class VQADataset(BaseDataset):
             #print(answer_list)
             num_answers.append(len(answer_list))
 
+        #print('##vqa_dataset sample##')
         #print(sample)
         return {
             "image": torch.stack(image_list, dim=0),
