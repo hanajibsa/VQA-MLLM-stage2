@@ -27,18 +27,18 @@ class Blip2Qformer(Blip2Base):
     }
 
     class Config:
-        HIDDEN_SIZE = 768
+        HIDDEN_SIZE = 512
         DROPOUT_R = 0.1
-        MULTI_HEAD = 12
+        MULTI_HEAD = 8
         HIDDEN_SIZE_HEAD = HIDDEN_SIZE // MULTI_HEAD
-        FF_SIZE = 3072
-        LAYER = 12
+        FF_SIZE = 2048
+        LAYER = 6
         FLAT_MLP_SIZE = 512
         FLAT_GLIMPSES = 1
         FLAT_OUT_SIZE = 512
         WORD_EMBED_SIZE = 300
         USE_GLOVE = False
-        IMG_FEAT_SIZE = 2048  # This should match the output feature size of the visual encoder
+        IMG_FEAT_SIZE = 512  # This should match the output feature size of the visual encoder
 
     def __init__(
         self,
@@ -50,7 +50,7 @@ class Blip2Qformer(Blip2Base):
         freeze_vit=True,
         num_query_token=32,
         cross_attention_freq=2,
-        embed_dim=256,
+        embed_dim=512,
         max_txt_len=32,
     ):
         super().__init__()
@@ -71,8 +71,8 @@ class Blip2Qformer(Blip2Base):
         # Initialize MCAN instead of Q-former
         self.MCAN = Net(self.Config, pretrained_emb=None, token_size=10000, answer_size=embed_dim)  # Adjust arguments as necessary
 
-        self.vision_proj = nn.Linear(embed_dim, embed_dim)
-        self.text_proj = nn.Linear(embed_dim, embed_dim)
+        self.vision_proj = nn.Linear(self.Config.IMG_FEAT_SIZE, embed_dim)
+        self.text_proj = nn.Linear(self.Config.HIDDEN_SIZE, embed_dim)
 
         self.itm_head = nn.Linear(embed_dim, 2)
 
@@ -86,38 +86,56 @@ class Blip2Qformer(Blip2Base):
         text = samples["text_input"]
 
         image_embeds = self.ln_vision(self.visual_encoder(image))
+        print(f'image_embeds size after vision encoder: {image_embeds.size()}')
+        image_embeds = self.vision_proj(image_embeds)  # Project image features to the correct size
+        print(f'image_embeds size after projection: {image_embeds.size()}')
         image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(image.device)
 
-        query_tokens = torch.zeros((image_embeds.shape[0], self.max_txt_len, image_embeds.shape[-1])).to(image.device)  # Dummy query tokens
+        # Tokenize text and pass through embedding layer
+        text_tokens = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=self.max_txt_len).input_ids.to(image.device)
+        print(f'text_tokens size: {text_tokens.size()}')
+        text_embeds = self.MCAN.embedding(text_tokens)
+        print(f'text_embeds size after embedding: {text_embeds.size()}')
 
-        lang_feat = self.tokenizer(text, return_tensors="pt", padding=True).input_ids.to(image.device)
-        lang_feat_mask = self.MCAN.make_mask(lang_feat)
+        lang_feat_mask = self.MCAN.make_mask(text_tokens)
         img_feat_mask = self.MCAN.make_mask(image_embeds)
 
         # Using MCAN
-        lang_feat, img_feat = self.MCAN.backbone(lang_feat, image_embeds, lang_feat_mask, img_feat_mask)
+        lang_feat, img_feat = self.MCAN.backbone(text_embeds, image_embeds, lang_feat_mask, img_feat_mask)
+        print(f'lang_feat size after MCAN backbone: {lang_feat.size()}')
+        print(f'img_feat size after MCAN backbone: {img_feat.size()}')
         img_feat = self.MCAN.attflat_img(img_feat, img_feat_mask)
         lang_feat = self.MCAN.attflat_lang(lang_feat, lang_feat_mask)
+        print(f'img_feat size after attflat: {img_feat.size()}')
+        print(f'lang_feat size after attflat: {lang_feat.size()}')
 
-        image_feats = F.normalize(self.vision_proj(img_feat), dim=-1)
-        text_feat = F.normalize(self.text_proj(lang_feat), dim=-1)
+        image_feats = F.normalize(img_feat, dim=-1)
+        text_feat = F.normalize(lang_feat, dim=-1)
+        print(f'image_feats size after normalization: {image_feats.size()}')
+        print(f'text_feat size after normalization: {text_feat.size()}')
 
         ###============== Image-text Contrastive ===================###
         image_feats_all = concat_all_gather(image_feats)
         text_feat_all = concat_all_gather(text_feat)
+        print(f'image_feats_all size: {image_feats_all.size()}')
+        print(f'text_feat_all size: {text_feat_all.size()}')
 
         sim_q2t = torch.matmul(image_feats.unsqueeze(1), text_feat_all.unsqueeze(-1)).squeeze()
+        print(f'sim_q2t size: {sim_q2t.size()}')
         sim_i2t, _ = sim_q2t.max(-1)
         sim_i2t = sim_i2t / self.temp
+        print(f'sim_i2t size: {sim_i2t.size()}')
 
         sim_t2q = torch.matmul(text_feat.unsqueeze(1).unsqueeze(1), image_feats_all.permute(0, 2, 1)).squeeze()
         sim_t2i, _ = sim_t2q.max(-1)
         sim_t2i = sim_t2i / self.temp
+        print(f'sim_t2i size: {sim_t2i.size()}')
 
         rank = 0  # dist.get_rank()
 
         bs = image.size(0)
         targets = torch.linspace(rank * bs, rank * bs + bs - 1, bs, dtype=int).to(image.device)
+        print(f'targets size: {targets.size()}')
 
         if "image_id" in samples.keys():
             image_ids = samples["image_id"].view(-1, 1)
@@ -125,6 +143,7 @@ class Blip2Qformer(Blip2Base):
             pos_idx = torch.eq(image_ids, image_ids_all.t()).float()
             sim_targets = pos_idx / pos_idx.sum(1, keepdim=True)
             sim_targets = 0.9 * sim_targets + 0.1 * torch.ones_like(sim_targets) / sim_targets.size(1)
+            print(f'sim_targets size: {sim_targets.size()}')
 
             loss_t2i = -torch.sum(F.log_softmax(sim_t2i, dim=1) * sim_targets, dim=1).mean()
             loss_i2t = -torch.sum(F.log_softmax(sim_i2t, dim=1) * sim_targets, dim=1).mean()
@@ -136,9 +155,12 @@ class Blip2Qformer(Blip2Base):
             ) / 2
 
         ###============== Image-text Matching ===================###
-        text_input_ids_world = concat_all_gather(lang_feat)
+        text_input_ids_world = concat_all_gather(text_embeds)
         text_attention_mask_world = concat_all_gather(lang_feat_mask)
         image_embeds_world = all_gather_with_grad(image_embeds)
+        print(f'text_input_ids_world size: {text_input_ids_world.size()}')
+        print(f'text_attention_mask_world size: {text_attention_mask_world.size()}')
+        print(f'image_embeds_world size: {image_embeds_world.size()}')
         with torch.no_grad():
             if "image_id" in samples.keys():
                 mask = torch.eq(image_ids, image_ids_all.t())
@@ -150,6 +172,8 @@ class Blip2Qformer(Blip2Base):
 
             weights_t2i = F.softmax(sim_t2i, dim=1)
             weights_i2t = F.softmax(sim_i2t, dim=1)
+            print(f'weights_t2i size: {weights_t2i.size()}')
+            print(f'weights_i2t size: {weights_i2t.size()}')
 
         # Select a negative image for each text
         image_embeds_neg = []
@@ -157,6 +181,7 @@ class Blip2Qformer(Blip2Base):
             neg_idx = torch.multinomial(weights_t2i[b], 1).item()
             image_embeds_neg.append(image_embeds_world[neg_idx])
         image_embeds_neg = torch.stack(image_embeds_neg, dim=0)
+        print(f'image_embeds_neg size: {image_embeds_neg.size()}')
 
         # Select a negative text for each image
         text_ids_neg = []
@@ -168,16 +193,24 @@ class Blip2Qformer(Blip2Base):
 
         text_ids_neg = torch.stack(text_ids_neg, dim=0)
         text_atts_neg = torch.stack(text_atts_neg, dim=0)
+        print(f'text_ids_neg size: {text_ids_neg.size()}')
+        print(f'text_atts_neg size: {text_atts_neg.size()}')
 
-        text_ids_all = torch.cat([lang_feat, lang_feat, text_ids_neg], dim=0)
+        text_ids_all = torch.cat([text_embeds, text_embeds, text_ids_neg], dim=0)
         text_atts_all = torch.cat([lang_feat_mask, lang_feat_mask, text_atts_neg], dim=0)
+        print(f'text_ids_all size: {text_ids_all.size()}')
+        print(f'text_atts_all size: {text_atts_all.size()}')
 
         query_tokens_itm = torch.zeros((text_ids_all.shape[0], self.max_txt_len, image_embeds.shape[-1])).to(image.device)
         query_atts_itm = torch.ones(query_tokens_itm.size()[:-1], dtype=torch.long).to(image.device)
         attention_mask_all = torch.cat([query_atts_itm, text_atts_all], dim=1)
+        print(f'query_tokens_itm size: {query_tokens_itm.size()}')
+        print(f'attention_mask_all size: {attention_mask_all.size()}')
 
         image_embeds_all = torch.cat([image_embeds, image_embeds_neg, image_embeds], dim=0)
         image_atts_all = torch.ones(image_embeds_all.size()[:-1], dtype=torch.long).to(image.device)
+        print(f'image_embeds_all size: {image_embeds_all.size()}')
+        print(f'image_atts_all size: {image_atts_all.size()}')
 
         output_itm = self.MCAN.backbone(
             text_ids_all,
@@ -187,10 +220,12 @@ class Blip2Qformer(Blip2Base):
             attention_mask_all,
             return_dict=True,
         )
+        print(f'output_itm last_hidden_state size: {output_itm.last_hidden_state.size()}')
 
         vl_embeddings = output_itm.last_hidden_state[:, :query_tokens_itm.size(1), :]
         vl_output = self.itm_head(vl_embeddings)
         logits = vl_output.mean(dim=1)
+        print(f'logits size: {logits.size()}')
 
         itm_labels = torch.cat(
             [torch.ones(bs, dtype=torch.long), torch.zeros(2 * bs, dtype=torch.long)],
@@ -199,9 +234,11 @@ class Blip2Qformer(Blip2Base):
         loss_itm = F.cross_entropy(logits, itm_labels)
 
         ##================= Image Captioning ========================##
-        decoder_input_ids = lang_feat.clone()
+        decoder_input_ids = text_embeds.clone()
         decoder_input_ids[:, 0] = self.tokenizer.bos_token_id
         labels = decoder_input_ids.masked_fill(decoder_input_ids == self.tokenizer.pad_token_id, -100)
+        print(f'decoder_input_ids size: {decoder_input_ids.size()}')
+        print(f'labels size: {labels.size()}')
 
         query_atts = torch.ones(query_tokens.size()[:-1], dtype=torch.long).to(image.device)
         attention_mask = torch.cat([query_atts, lang_feat_mask], dim=1)
@@ -213,6 +250,7 @@ class Blip2Qformer(Blip2Base):
             return_dict=True,
             labels=labels,
         )
+        print(f'lm_output loss size: {lm_output.loss.size()}')
 
         loss_lm = lm_output.loss
 
@@ -236,6 +274,7 @@ class Blip2Qformer(Blip2Base):
     ):
         image = samples["image"]
         image_embeds = self.ln_vision(self.visual_encoder(image))
+        image_embeds = self.vision_proj(image_embeds)  # Project image features to the correct size
 
         if not use_nucleus_sampling:
             image_embeds = image_embeds.repeat_interleave(num_beams, dim=0)
@@ -272,6 +311,7 @@ class Blip2Qformer(Blip2Base):
 
     def forward_image(self, image):
         image_embeds = self.ln_vision(self.visual_encoder(image))
+        image_embeds = self.vision_proj(image_embeds)  # Project image features to the correct size
         image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(image.device)
 
         query_tokens = torch.zeros((image_embeds.shape[0], self.max_txt_len, image_embeds.shape[-1])).to(image.device)
@@ -285,14 +325,16 @@ class Blip2Qformer(Blip2Base):
         return query_output.last_hidden_state, image_embeds
 
     def forward_text(self, text_tokens):
+        text_embeds = self.MCAN.embedding(text_tokens.input_ids.to(self.device))
         text_output = self.MCAN.backbone(
-            text_tokens.input_ids,
+            text_embeds,
             text_tokens.attention_mask,
             return_dict=True,
         )
         return text_output.last_hidden_state[:, 0, :]
 
     def compute_itm(self, image_inputs, text_ids, text_atts):
+        image_inputs = self.vision_proj(image_inputs)  # Project image features to the correct size
         image_atts = torch.ones(image_inputs.size()[:-1], dtype=torch.long).to(image_inputs.device)
         query_tokens = torch.zeros((image_inputs.shape[0], self.max_txt_len, image_inputs.shape[-1])).to(image_inputs.device)
         query_atts = torch.ones(query_tokens.size()[:-1], dtype=torch.long).to(image_inputs.device)
@@ -325,6 +367,7 @@ class Blip2Qformer(Blip2Base):
             with self.maybe_autocast():
                 image_embeds_frozen = self.ln_vision(self.visual_encoder(image))
             image_embeds_frozen = image_embeds_frozen.float()
+            image_embeds_frozen = self.vision_proj(image_embeds_frozen)  # Project image features to the correct size
             image_atts = torch.ones(image_embeds_frozen.size()[:-1], dtype=torch.long).to(self.device)
             query_tokens = torch.zeros((image_embeds_frozen.shape[0], self.max_txt_len, image_embeds_frozen.shape[-1])).to(self.device)
 
@@ -341,9 +384,10 @@ class Blip2Qformer(Blip2Base):
             assert caption is not None, "text input is None for mode 'text' or 'multimodal'"
 
             text = self.tokenizer(caption, return_tensors="pt", padding=True).to(self.device)
+            text_embeds = self.MCAN.embedding(text.input_ids)
 
             text_output = self.MCAN.backbone(
-                text.input_ids,
+                text_embeds,
                 text.attention_mask,
                 return_dict=True,
             )
@@ -355,15 +399,17 @@ class Blip2Qformer(Blip2Base):
             with self.maybe_autocast():
                 image_embeds_frozen = self.ln_vision(self.visual_encoder(image))
             image_embeds_frozen = image_embeds_frozen.float()
+            image_embeds_frozen = self.vision_proj(image_embeds_frozen)  # Project image features to the correct size
             image_atts = torch.ones(image_embeds_frozen.size()[:-1], dtype=torch.long).to(self.device)
             query_tokens = torch.zeros((image_embeds_frozen.shape[0], self.max_txt_len, image_embeds_frozen.shape[-1])).to(self.device)
             query_atts = torch.ones(query_tokens.size()[:-1], dtype=torch.long).to(self.device)
 
             text = self.tokenizer(caption, return_tensors="pt", padding=True).to(self.device)
+            text_embeds = self.MCAN.embedding(text.input_ids)
             attention_mask = torch.cat([query_atts, text.attention_mask], dim=1)
 
             output = self.MCAN.backbone(
-                text.input_ids,
+                text_embeds,
                 query_tokens,
                 attention_mask,
                 encoder_hidden_states=image_embeds_frozen,
