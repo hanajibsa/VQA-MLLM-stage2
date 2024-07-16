@@ -24,13 +24,18 @@ if packaging error, then
 pip install setuptools==69.5.1
 ```
 
-1. Pretraining of visual assistant branch
+1. pretraining of Dm-Former
+```Shell
+python train.py --cfg-path train_configs/pretrain_stage1.yaml
+```
+
+2. Pretraining of visual assistant branch
 
 ```Shell
 python train.py --cfg-path train_configs/pretrain_bliva_vicuna.yaml
 ```
 
-2. Instruction Finetuning 
+3. Instruction Finetuning 
 
 ```Shell
 python 
