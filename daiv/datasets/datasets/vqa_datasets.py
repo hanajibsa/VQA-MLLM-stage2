@@ -19,20 +19,31 @@ class VQADataset(BaseDataset):
 
         num_answers = []
 
+        #print(f'samples : {samples}')
+        '''
+        samples : {
+        image : tensor([[[]]])
+        text_input : str (question)
+        text_output : str (best_answer) .. only one
+        weights : dict {cand1 : conf1 , cand2 : conf2 ...} .. 이미지마다 개수 다름 (conf합이 1)
+
+        }
+        '''
+
         for sample in samples:
             image_list.append(sample["image"])
             question_list.append(sample["text_input"])
             #print(sample)
-            weight_list.extend(list(sample["weights"].values()))
+            weight_list.append(sample["weights"][sample['text_output']])
             #print(weight_list)
             #answers = sample["weights"]
             #print(answers)
-            answer_list.extend(sample['weights'])
+            answer_list.append(sample['text_output'])
             #print(answer_list)
-            num_answers.append(len(answer_list))
+            num_answers.append(len(list(sample["weights"].values())))
 
         #print('##vqa_dataset sample##')
-        #print(sample)
+        #print()
         return {
             "image": torch.stack(image_list, dim=0),
             "text_input": question_list,

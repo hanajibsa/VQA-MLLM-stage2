@@ -71,8 +71,8 @@ class Blip2Qformer(Blip2Base):
         # Initialize MCAN instead of Q-former
         self.MCAN = Net(self.Config, pretrained_emb=None, token_size=10000, answer_size=embed_dim)  # Adjust arguments as necessary
 
-        self.vision_proj = nn.Linear(self.Config.IMG_FEAT_SIZE, embed_dim)
-        self.text_proj = nn.Linear(self.Config.WORD_EMBED_SIZE, embed_dim)  # Adjusted to match the embedding size
+        #self.vision_proj = nn.Linear(self.Config.IMG_FEAT_SIZE, embed_dim)
+        self.text_proj = nn.Linear(self.Config.WORD_EMBED_SIZE, self.Config.HIDDEN_SIZE)  # Adjusted to match the embedding size
 
         self.itm_head = nn.Linear(embed_dim, 2)
 
@@ -85,12 +85,16 @@ class Blip2Qformer(Blip2Base):
         image = samples["image"]
         text = samples["text_input"]
 
+        print(image.size())
+        print(len(text))
+        print(len(samples["text_output"]))
+
         image_embeds = self.ln_vision(self.visual_encoder(image))
         print(f'image_embeds size after vision encoder: {image_embeds.size()}')
-        image_embeds = self.vision_proj(image_embeds)  # Project image features to the correct size
+        image_embeds = self.MCAN.img_feat_linear(image_embeds)  # Project image features to the correct size
         print(f'image_embeds size after vision projection: {image_embeds.size()}')
 
-        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(image.device)
+        #image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(image.device)
 
         # Tokenize text and pass through embedding layer
         text_tokens = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=self.max_txt_len).input_ids.to(image.device)
@@ -98,10 +102,10 @@ class Blip2Qformer(Blip2Base):
         print(f'text_embeds size after tokenization and embedding: {text_embeds.size()}')
 
         # Project text features to the correct size
-        text_embeds = self.text_proj(text_embeds.view(-1, text_embeds.size(-1))).view(text_embeds.size(0), text_embeds.size(1), -1)
+        text_embeds = self.text_proj(text_embeds)#.view(-1, text_embeds.size(-1))).view(text_embeds.size(0), text_embeds.size(1), -1)
         print(f'text_embeds size after projection: {text_embeds.size()}')
 
-        lang_feat_mask = self.MCAN.make_mask(text_tokens)
+        lang_feat_mask = self.MCAN.make_mask(text_tokens.unsqueeze(2))
         img_feat_mask = self.MCAN.make_mask(image_embeds)
         print(f'lang_feat_mask size: {lang_feat_mask.size()}')
         print(f'img_feat_mask size: {img_feat_mask.size()}')
