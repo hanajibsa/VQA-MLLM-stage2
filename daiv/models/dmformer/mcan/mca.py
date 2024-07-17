@@ -20,7 +20,7 @@ class MHAtt(nn.Module):
         super(MHAtt, self).__init__()
         self.__C = __C
 
-        self.linear_v = nn.Linear(__C.HIDDEN_SIZE, __C.HIDDEN_SIZE)
+        self.linear_v = nn.Linear(__C.HIDDEN_SIZE, __C.HIDDEN_SIZE) #512
         self.linear_k = nn.Linear(__C.HIDDEN_SIZE, __C.HIDDEN_SIZE)
         self.linear_q = nn.Linear(__C.HIDDEN_SIZE, __C.HIDDEN_SIZE)
         self.linear_merge = nn.Linear(__C.HIDDEN_SIZE, __C.HIDDEN_SIZE)
@@ -29,12 +29,16 @@ class MHAtt(nn.Module):
 
     def forward(self, v, k, q, mask):
         n_batches = q.size(0)
+        assert v.size(-1) == self.__C.HIDDEN_SIZE
+        assert k.size(-1) == self.__C.HIDDEN_SIZE
+        assert q.size(-1) == self.__C.HIDDEN_SIZE
+        assert mask is None or mask.dtype == torch.bool
 
         v = self.linear_v(v).view(
-            n_batches,
+            n_batches, #batch size
             -1,
-            self.__C.MULTI_HEAD,
-            self.__C.HIDDEN_SIZE_HEAD
+            self.__C.MULTI_HEAD, #8
+            self.__C.HIDDEN_SIZE_HEAD #64
         ).transpose(1, 2)
 
         k = self.linear_k(k).view(
@@ -64,14 +68,16 @@ class MHAtt(nn.Module):
 
     def att(self, value, key, query, mask):
         d_k = query.size(-1)
-
         scores = torch.matmul(
             query, key.transpose(-2, -1)
         ) / math.sqrt(d_k)
 
         if mask is not None:
-            scores = scores.masked_fill(mask, -1e9)
-
+            mask = mask.to(torch.bool)  # Ensure mask is of type bool
+            print(f'mask shape: {mask.shape}, mask dtype: {mask.dtype}')
+            print(f'scores shape before mask: {scores.shape}')
+            scores = scores.masked_fill(mask, -1e4)
+            print(f'scores shape after mask: {scores.shape}')
         att_map = F.softmax(scores, dim=-1)
         att_map = self.dropout(att_map)
 
