@@ -137,7 +137,7 @@ class Blip2VicunaInstruct(Blip2Base):
             image_atts_llm = torch.ones(image_embeds_llm.size()[:-1], dtype=torch.long).to(image.device)
 
         text_for_mcan = samples["text_input"]
-        text_for_llm = samples["text_input"]  # Inference 시에는 여기 question-aware prompt를 넣음
+        # text_for_llm = samples["text_input"]  # Inference 시에는 여기 question-aware prompt를 넣음
 
         # Process text for MCAN
         text_tokens_mcan = self.tokenizer(
@@ -148,11 +148,11 @@ class Blip2VicunaInstruct(Blip2Base):
         text_atts_mcan = self.MCAN.make_mask(text_tokens_mcan.unsqueeze(2))
         
         # Process text for LLM
-        text_tokens_llm = self.tokenizer(
-            text_for_llm, return_tensors="pt", padding="longest", truncation=True, max_length=self.max_txt_len
-        ).input_ids.to(image.device)
-        text_embeds_llm = self.text_proj(self.MCAN.embedding(text_tokens_llm))
-        text_atts_llm = torch.ones(text_embeds_llm.size()[:-1], dtype=torch.long).to(image.device)
+        # text_tokens_llm = self.tokenizer(
+        #     text_for_llm, return_tensors="pt", padding="longest", truncation=True, max_length=self.max_txt_len
+        # ).input_ids.to(image.device)
+        # text_embeds_llm = self.text_proj(self.MCAN.embedding(text_tokens_llm))
+        # text_atts_llm = torch.ones(text_embeds_llm.size()[:-1], dtype=torch.long).to(image.device)
 
         txt_mcan_output, img_mcan_output = self.MCAN.backbone(text_embeds_mcan, image_embeds_mcan, text_atts_mcan, image_atts_mcan)
         
@@ -169,9 +169,11 @@ class Blip2VicunaInstruct(Blip2Base):
         # print(f'mcan output ; {mcan_output.size()}') # torch.Size([8, 1, 512])   
         # print(f'image_embeds_llm ; {image_embeds_llm.size()}') # torch.Size([8, 256, 4096])   
         # print(f'txt_embeds_llm ; {text_embeds_llm.size()}') # torch.Size([8, 29, 4096]) 
-        inputs_llm = torch.cat([self.llm_proj(mcan_output), image_embeds_llm, text_embeds_llm], dim=1)
+        # inputs_llm = torch.cat([self.llm_proj(mcan_output), image_embeds_llm, text_embeds_llm], dim=1)
+        inputs_llm = torch.cat([self.llm_proj(mcan_output), image_embeds_llm], dim=1)
         
-        atts_llm = torch.cat([torch.ones(mcan_output.size()[:-1], dtype=torch.long).to(image.device), image_atts_llm, text_atts_llm], dim=1)
+        # atts_llm = torch.cat([torch.ones(mcan_output.size()[:-1], dtype=torch.long).to(image.device), image_atts_llm, text_atts_llm], dim=1)
+        atts_llm = torch.cat([torch.ones(mcan_output.size()[:-1], dtype=torch.long).to(image.device), image_atts_llm], dim=1)
 
         self.llm_tokenizer.padding_side = "right"
 

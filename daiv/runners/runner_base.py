@@ -414,10 +414,10 @@ class RunnerBase:
                     # save checkpoint per 5 epoch
                     self._save_checkpoint(cur_epoch, is_best=False)
                     # evaluation
-                    for split_name in self.test_splits:
-                        test_logs[split_name] = self.eval_epoch_one(
-                            split_name=split_name, cur_epoch=cur_epoch, skip_reload=skip_reload
-                        )
+                    # for split_name in self.test_splits:
+                    #     test_logs[split_name] = self.eval_epoch_one(
+                    #         split_name=split_name, cur_epoch=cur_epoch, skip_reload=False
+                    #     )
 
             if self.evaluate_only:
                 break
@@ -542,8 +542,8 @@ class RunnerBase:
             dataset=self.datasets[split_name],
         )
         # 배치 하나만 testing 
-        data_loader_one = itertools.islice(data_loader, 1)
-        results = self.task.evaluation(model, data_loader_one)
+        # data_loader_one = itertools.islice(data_loader, 1)
+        results = self.task.evaluation(model, data_loader)
 
         # if results is not None:
         #     return self.task.after_evaluation(
