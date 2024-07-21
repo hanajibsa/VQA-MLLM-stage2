@@ -35,6 +35,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.utils.data.dataset import ChainDataset
 from tqdm.auto import tqdm
+import itertools
 
 @registry.register_runner("runner_base")
 class RunnerBase:
@@ -384,7 +385,8 @@ class RunnerBase:
                 self.log_stats(split_name="train", stats=train_stats)
 
             # evaluation phase
-            if len(self.valid_splits) > 0:
+            # if len(self.valid_splits) > 0:
+            if self.evaluate_only:
                 for split_name in self.valid_splits:
                     logging.info("Evaluating on {}.".format(split_name))
 
@@ -408,8 +410,14 @@ class RunnerBase:
 
             else:
                 # if no validation split is provided, we just save the checkpoint at the end of each epoch.
-                if not self.evaluate_only:
+                if cur_epoch % 5 == 0:
+                    # save checkpoint per 5 epoch
                     self._save_checkpoint(cur_epoch, is_best=False)
+                    # evaluation
+                    for split_name in self.test_splits:
+                        test_logs[split_name] = self.eval_epoch_one(
+                            split_name=split_name, cur_epoch=cur_epoch, skip_reload=skip_reload
+                        )
 
             if self.evaluate_only:
                 break
@@ -501,6 +509,48 @@ class RunnerBase:
                 split_name=split_name,
                 epoch=cur_epoch,
             )
+
+    @torch.no_grad()
+    def eval_epoch_one(self, split_name, cur_epoch, skip_reload=False):
+        """
+        Evaluate the model on a given split.
+
+        Args:
+            split_name (str): name of the split to evaluate on.
+            cur_epoch (int): current epoch.
+            skip_reload_best (bool): whether to skip reloading the best checkpoint.
+                During training, we will reload the best checkpoint for validation.
+                During testing, we will use provided weights and skip reloading the best checkpoint .
+        """
+        data_loader = self.dataloaders.get(split_name, None)
+        assert data_loader, "data_loader for split {} is None.".format(split_name)
+
+        # TODO In validation, you need to compute loss as well as metrics
+        # TODO consider moving to model.before_evaluation()
+        # model = self._load_checkpoint(self.resume_ckpt_path)
+        # checkpoint = torch.load(url_or_filename, map_location=self.device)
+        # state_dict = checkpoint["model"]
+        model = self.unwrap_dist_model(self.model)
+        # model.load_state_dict(state_dict)
+        # model = self.unwrap_dist_model(self.model)
+        # if not skip_reload and cur_epoch == "best":
+        #     model = self._reload_best_model(model)
+        model.eval()
+
+        self.task.before_evaluation(
+            model=model,
+            dataset=self.datasets[split_name],
+        )
+        # 배치 하나만 testing 
+        data_loader_one = itertools.islice(data_loader, 1)
+        results = self.task.evaluation(model, data_loader_one)
+
+        # if results is not None:
+        #     return self.task.after_evaluation(
+        #         val_result=results,
+        #         split_name=split_name,
+        #         epoch=cur_epoch,
+        #     )
 
 
     def unwrap_dist_model(self, model):

@@ -6,7 +6,8 @@ import torch
 from torch.cuda.amp import autocast as autocast
 import torch.nn as nn
 
-from transformers import LlamaTokenizer, LlamaForCausalLM
+from transformers import LlamaTokenizer
+from daiv.models.modeling_llama import LlamaForCausalLM
 import transformers
 
 from daiv.models.dmformer.mcan.net import Net  # Importing the Net class from net.py
@@ -53,7 +54,8 @@ class Blip2VicunaInstruct(Blip2Base):
         use_grad_checkpoint=False,
         vit_precision="fp16",
         freeze_vit=True,
-        llm_model="lmsys/vicuna-7b-v1.5",
+        # llm_model="lmsys/vicuna-7b-v1.5",
+        llm_model='',
         prompt="",
         max_txt_len=32,
         apply_lemmatizer=False,
@@ -164,9 +166,9 @@ class Blip2VicunaInstruct(Blip2Base):
 
         mcan_output = mcan_output.unsqueeze(1)
 
-        print(f'mcan output ; {mcan_output.size()}') # torch.Size([8, 1, 512])   
-        print(f'image_embeds_llm ; {image_embeds_llm.size()}') # torch.Size([8, 256, 4096])   
-        print(f'txt_embeds_llm ; {text_embeds_llm.size()}') # torch.Size([8, 29, 4096]) 
+        # print(f'mcan output ; {mcan_output.size()}') # torch.Size([8, 1, 512])   
+        # print(f'image_embeds_llm ; {image_embeds_llm.size()}') # torch.Size([8, 256, 4096])   
+        # print(f'txt_embeds_llm ; {text_embeds_llm.size()}') # torch.Size([8, 29, 4096]) 
         inputs_llm = torch.cat([self.llm_proj(mcan_output), image_embeds_llm, text_embeds_llm], dim=1)
         
         atts_llm = torch.cat([torch.ones(mcan_output.size()[:-1], dtype=torch.long).to(image.device), image_atts_llm, text_atts_llm], dim=1)

@@ -40,8 +40,8 @@ class BaseDataset(Dataset):
                 data = json.load(f)
                 self.annotation.extend(data['annotations'])  # 'annotations' 키의 값을 가져옴
 
-        #print(self.annotation)
-        #print(ann_path)
+        # print(self.annotation)
+        # print(ann_path)
         self.vis_processor = vis_processor
         self.text_processor = text_processor
 

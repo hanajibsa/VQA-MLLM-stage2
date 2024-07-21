@@ -53,6 +53,8 @@ class COCOVQADataset(VQADataset):
 
     def __getitem__(self, index):
         ann = self.annotation[index]
+        # print('ann:', ann)
+        # print('ann keys:', ann.keys())
 
         image_filename = f"train2014/COCO_train2014_{ann['image_id']:012d}.jpg"
         image_path = os.path.join(self.vis_root, image_filename)

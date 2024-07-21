@@ -133,10 +133,10 @@ class VQATask(BaseTask):
         answers = model.predict_answers(
             samples=samples,
             answer_list=self.answer_list,
-            # inference_method=self.inference_method,
-            # num_beams=self.num_beams,
-            # max_len=self.max_len,
-            # min_len=self.min_len,
+            inference_method=self.inference_method,
+            num_beams=self.num_beams,
+            max_len=self.max_len,
+            min_len=self.min_len,
             num_ans_candidates=self.num_ans_candidates,
             prompt=self.prompt,
         )
@@ -148,6 +148,7 @@ class VQATask(BaseTask):
             if ques_id != int and is_convertible_to_int(ques_id):
                 ques_id = int(ques_id)
             pred_qa_pairs.append({"question_id": ques_id, "answer": answer})
+            print("question_id:", ques_id, "answer:", answer)
 
         return pred_qa_pairs
 
@@ -160,6 +161,7 @@ class VQATask(BaseTask):
         )
 
         metrics = self._report_metrics(result_file=result_file, split=split_name)
+        print('metrics:', metrics)
 
         return metrics
 

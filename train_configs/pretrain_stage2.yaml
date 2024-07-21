@@ -8,8 +8,10 @@ model:
   model_type: vicuna7b
   load_pretrained: True
   # intialize stage 2 pretraining from stage 1 pretrained model
-  pretrained: "/root/workspace/24s-VQA-MLLM/EunJuPark/BLIVA/daiv/output/BLIP2/Pretrain_stage1/20240718133/checkpoint_9.pth" #"/home/intern24/daiv/BLIVA/daiv/output/BLIP2/Pretrain_stage1/mcan_stage1_checkpoint_9.pth"
-  freeze_vit: True
+  # MCAN
+  pretrained: "/root/workspace/24s-VQA-MLLM/EunJuPark/BLIVA/daiv/output/BLIP2/Pretrain_stage1/20240718133/checkpoint_9.pth"
+  # MCAN + DAT
+  # pretrained: "/root/workspace/24s-VQA-MLLM/EunJuPark/BLIVA/daiv/output/BLIP2/Pretrain_stage1/20240718160/checkpoint_9.pth"
 
 
 datasets:
@@ -45,7 +47,7 @@ run:
   warmup_lr: 1e-6
 
   weight_decay: 0.05
-  max_epoch: 10
+  max_epoch: 50
   batch_size_train: 8 #64
   batch_size_eval: 8 #64
   num_workers: 4
@@ -59,6 +61,7 @@ run:
 
   evaluate: False 
   train_splits: ["train"]
+  test_splits: ["test"]
 
   device: "cuda"
   world_size: 1
